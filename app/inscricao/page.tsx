@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import InputMask from "react-input-mask";
 import axios from "axios";
+import { supabase } from "@/lib/supabase";
 
 export default function InscricaoPage() {
   const [formData, setFormData] = useState({
@@ -17,10 +18,64 @@ export default function InscricaoPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [aceitaUsoImagem, setAceitaUsoImagem] = useState(false);
+  const [aceitaRegulamento, setAceitaRegulamento] = useState(false);
+  const [loteConfig, setLoteConfig] = useState<{
+    numero_lote: number;
+    preco_base: number;
+    preco_almoco: number;
+  } | null>(null);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-  const valorBase = 40;
-  const valorAlmoco = 15;
+  const valorBase = loteConfig?.preco_base || 40;
+  const valorAlmoco = loteConfig?.preco_almoco || 15;
   const valorTotal = valorBase + (formData.incluiAlmoco ? valorAlmoco : 0);
+
+  useEffect(() => {
+    const loadLoteConfig = async () => {
+      try {
+        // Buscar lote ativo
+        const { data: configData, error: configError } = await supabase
+          .from("config_sistema")
+          .select("valor")
+          .eq("chave", "lote_ativo")
+          .single();
+
+        if (configError) throw configError;
+
+        const loteAtivo = parseInt(configData.valor);
+
+        // Buscar configurações do lote ativo de config_sistema
+        const { data: configsData, error: configsError } = await supabase
+          .from("config_sistema")
+          .select("chave, valor")
+          .or(
+            `chave.eq.lote_${loteAtivo}_preco_base,chave.eq.lote_${loteAtivo}_preco_almoco`
+          );
+
+        if (configsError) throw configsError;
+
+        // Montar objeto de configuração
+        const config: any = { numero_lote: loteAtivo };
+        configsData?.forEach((item) => {
+          if (item.chave.includes("preco_base")) {
+            config.preco_base = parseFloat(item.valor);
+          } else if (item.chave.includes("preco_almoco")) {
+            config.preco_almoco = parseFloat(item.valor);
+          }
+        });
+
+        setLoteConfig(config);
+      } catch (error) {
+        console.error("Erro ao carregar configuração do lote:", error);
+        // Manter valores padrão em caso de erro
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+
+    loadLoteConfig();
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -59,6 +114,9 @@ export default function InscricaoPage() {
     if (!formData.parroquia.trim()) return "Paróquia é obrigatória";
     if (!formData.cidade.trim()) return "Cidade é obrigatória";
     if (!formData.tamanho) return "Tamanho da camisa é obrigatório";
+    if (!aceitaUsoImagem)
+      return "Você deve aceitar as Diretrizes de Uso de Imagem e Dados Pessoais";
+    if (!aceitaRegulamento) return "Você deve aceitar o Regulamento Geral";
     return null;
   };
 
@@ -75,6 +133,8 @@ export default function InscricaoPage() {
     setIsSubmitting(true);
 
     try {
+      // 🔒 SEGURANÇA: Enviar apenas dados do formulário
+      // NÃO enviar valor_total ou checkout_url
       const response = await axios.post("/api/pedidos/create", {
         nome: formData.nome,
         idade: parseInt(formData.idade),
@@ -84,18 +144,31 @@ export default function InscricaoPage() {
         cidade: formData.cidade,
         tamanho: formData.tamanho,
         inclui_almoco: formData.incluiAlmoco,
-        valor_total: valorTotal,
+        // ❌ NÃO enviar: valor_total, checkout_url, lote
       });
 
-      // Redirecionar para o checkout do Mercado Pago
-      if (response.data.init_point) {
-        window.location.href = response.data.init_point;
-      } else {
+      // 🔒 VALIDAÇÃO: Verificar se resposta do backend é válida
+      if (!response.data.init_point) {
         throw new Error("Link de pagamento não foi gerado");
       }
+
+      // 🔒 VALIDAÇÃO: Verificar se URL é válida
+      if (!response.data.init_point.startsWith("http")) {
+        throw new Error("URL de checkout inválida");
+      }
+
+      console.log("✅ Pedido validado pelo backend:", {
+        lote: response.data.lote,
+        valor: response.data.valor_total,
+      });
+
+      // Redirecionar para o checkout validado pelo backend
+      window.location.href = response.data.init_point;
     } catch (err: any) {
+      console.error("❌ Erro ao processar pedido:", err);
       setError(
         err.response?.data?.error ||
+          err.message ||
           "Erro ao processar pedido. Tente novamente."
       );
       setIsSubmitting(false);
@@ -105,6 +178,42 @@ export default function InscricaoPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
+        {/* Loading State */}
+        {isLoadingConfig && (
+          <div className="mb-6 bg-white rounded-xl shadow-lg p-6 text-center">
+            <div className="animate-pulse">
+              <div className="text-gray-600 font-medium">
+                Carregando configurações do lote...
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Banner do Lote Ativo */}
+        {!isLoadingConfig && loteConfig && (
+          <div className="mb-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-lg p-6">
+            <div className="text-center">
+              <div className="text-sm font-semibold uppercase tracking-wider mb-2 opacity-90">
+                Lote Ativo
+              </div>
+              <div className="text-4xl font-bold mb-3">
+                Lote {loteConfig.numero_lote}
+              </div>
+              <div className="text-2xl font-semibold mb-2">
+                R${" "}
+                {(loteConfig.preco_base + loteConfig.preco_almoco)
+                  .toFixed(2)
+                  .replace(".", ",")}
+              </div>
+              <div className="text-sm opacity-90">
+                Inscrição: R${" "}
+                {loteConfig.preco_base.toFixed(2).replace(".", ",")} | Almoço:
+                R$ {loteConfig.preco_almoco.toFixed(2).replace(".", ",")}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Card principal */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
@@ -266,32 +375,112 @@ export default function InscricaoPage() {
             </div>
 
             {/* Checkbox Almoço */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="incluiAlmoco"
-                name="incluiAlmoco"
-                checked={formData.incluiAlmoco}
-                onChange={handleChange}
-                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label
-                htmlFor="incluiAlmoco"
-                className="ml-3 text-sm font-medium text-gray-700"
-              >
-                Incluir Almoço (+R$ 15,00)
-              </label>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="incluiAlmoco"
+                  name="incluiAlmoco"
+                  checked={formData.incluiAlmoco}
+                  onChange={handleChange}
+                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label
+                  htmlFor="incluiAlmoco"
+                  className="ml-3 text-sm font-medium text-gray-700"
+                >
+                  Incluir Almoço (+R$ {valorAlmoco.toFixed(2).replace(".", ",")}
+                  )
+                </label>
+              </div>
             </div>
 
-            {/* Valor Total */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold text-gray-800">
-                  Valor Total:
-                </span>
-                <span className="text-2xl font-bold text-blue-600">
-                  R$ {valorTotal.toFixed(2).replace(".", ",")}
-                </span>
+            {/* Valor Total com Breakdown */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-6 space-y-3">
+              <div className="text-center mb-4">
+                <div className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                  Resumo do Pedido
+                </div>
+                {loteConfig && (
+                  <div className="text-xs text-gray-500">
+                    Lote {loteConfig.numero_lote} vigente
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-gray-700">
+                  <span className="font-medium">
+                    Inscrição (Lote {loteConfig?.numero_lote || 1}):
+                  </span>
+                  <span className="font-semibold">
+                    R$ {valorBase.toFixed(2).replace(".", ",")}
+                  </span>
+                </div>
+
+                {formData.incluiAlmoco && (
+                  <div className="flex justify-between items-center text-gray-700">
+                    <span className="font-medium">Almoço:</span>
+                    <span className="font-semibold">
+                      R$ {valorAlmoco.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                )}
+
+                <div className="border-t-2 border-blue-300 pt-3 mt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xl font-bold text-gray-800">
+                      Valor Total:
+                    </span>
+                    <span className="text-3xl font-bold text-blue-600">
+                      R$ {valorTotal.toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center text-xs text-gray-500 mt-4 pt-4 border-t border-blue-200">
+                🔒 Pagamento seguro via Mercado Pago
+              </div>
+            </div>
+
+            {/* Termos de Aceite */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-start">
+                <input
+                  type="checkbox"
+                  id="aceitaUsoImagem"
+                  checked={aceitaUsoImagem}
+                  onChange={(e) => setAceitaUsoImagem(e.target.checked)}
+                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
+                />
+                <label
+                  htmlFor="aceitaUsoImagem"
+                  className="ml-3 text-sm text-gray-700"
+                >
+                  Declaro que li e aceito as{" "}
+                  <span className="font-semibold">
+                    Diretrizes de Uso de Imagem e Dados Pessoais
+                  </span>
+                  .
+                </label>
+              </div>
+
+              <div className="flex items-start">
+                <input
+                  type="checkbox"
+                  id="aceitaRegulamento"
+                  checked={aceitaRegulamento}
+                  onChange={(e) => setAceitaRegulamento(e.target.checked)}
+                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
+                />
+                <label
+                  htmlFor="aceitaRegulamento"
+                  className="ml-3 text-sm text-gray-700"
+                >
+                  Declaro que li e concordo o{" "}
+                  <span className="font-semibold">Regulamento Geral</span>.
+                </label>
               </div>
             </div>
 
@@ -307,14 +496,65 @@ export default function InscricaoPage() {
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={
+                  isSubmitting ||
+                  isLoadingConfig ||
+                  !aceitaUsoImagem ||
+                  !aceitaRegulamento
+                }
                 className="flex-1 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Processando..." : "Salvar Pedido e Pagar"}
+                {isSubmitting
+                  ? "Processando..."
+                  : "Finalizar Inscrição e Ir para Pagamento"}
               </button>
             </div>
           </form>
         </div>
+
+        {/* Footer com Redes Sociais */}
+        <footer className="mt-8 bg-white rounded-xl shadow-lg p-6">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Siga nossas redes sociais
+            </h3>
+            <div className="flex justify-center items-center gap-6">
+              {/* WhatsApp */}
+              <a
+                href="https://chat.whatsapp.com/seu-grupo-aqui"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                </svg>
+                Grupo WhatsApp
+              </a>
+
+              {/* Instagram */}
+              <a
+                href="https://instagram.com/seu-perfil-aqui"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                </svg>
+                Instagram
+              </a>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

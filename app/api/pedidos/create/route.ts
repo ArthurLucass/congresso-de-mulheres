@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
       cidade,
       tamanho,
       inclui_almoco,
-      valor_total,
     } = body;
 
     // Validações básicas
@@ -24,14 +23,93 @@ export async function POST(request: NextRequest) {
       !email ||
       !parroquia ||
       !cidade ||
-      !tamanho ||
-      valor_total === undefined
+      !tamanho
     ) {
       return NextResponse.json(
         { error: "Todos os campos são obrigatórios" },
         { status: 400 }
       );
     }
+
+    // Buscar lote ativo
+    const { data: configData, error: configError } = await supabase
+      .from("config_sistema")
+      .select("valor")
+      .eq("chave", "lote_ativo")
+      .single();
+
+    if (configError || !configData) {
+      console.error("Erro ao buscar lote ativo:", configError);
+      return NextResponse.json(
+        { error: "Erro ao buscar configuração do sistema" },
+        { status: 500 }
+      );
+    }
+
+    const loteAtivo = parseInt(configData.valor);
+
+    // Buscar configurações do lote ativo de config_sistema
+    const { data: configsData, error: configsError } = await supabase
+      .from("config_sistema")
+      .select("chave, valor")
+      .or(
+        `chave.eq.lote_${loteAtivo}_preco_base,chave.eq.lote_${loteAtivo}_preco_almoco,chave.eq.lote_${loteAtivo}_checkout_url`
+      );
+
+    if (configsError || !configsData || configsData.length === 0) {
+      console.error("Erro ao buscar configuração do lote:", configsError);
+      return NextResponse.json(
+        { error: "Erro ao buscar configuração do lote" },
+        { status: 500 }
+      );
+    }
+
+    // Montar objeto de configuração do lote
+    const loteConfig: any = { numero_lote: loteAtivo };
+    configsData.forEach((config) => {
+      if (config.chave.includes("preco_base")) {
+        loteConfig.preco_base = parseFloat(config.valor);
+      } else if (config.chave.includes("preco_almoco")) {
+        loteConfig.preco_almoco = parseFloat(config.valor);
+      } else if (config.chave.includes("checkout_url")) {
+        loteConfig.checkout_url = config.valor;
+      }
+    });
+
+    // 🔒 VALIDAÇÃO DE SEGURANÇA: Verificar se configurações estão completas
+    if (
+      !loteConfig.preco_base ||
+      !loteConfig.preco_almoco ||
+      !loteConfig.checkout_url
+    ) {
+      console.error("Configuração do lote incompleta:", loteConfig);
+      return NextResponse.json(
+        {
+          error:
+            "Configuração do lote está incompleta. Contate o administrador.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // 🔒 VALIDAÇÃO DE SEGURANÇA: Verificar se URL de checkout é válida
+    if (!loteConfig.checkout_url.startsWith("http")) {
+      console.error("URL de checkout inválida:", loteConfig.checkout_url);
+      return NextResponse.json(
+        { error: "URL de checkout não configurada corretamente" },
+        { status: 500 }
+      );
+    }
+
+    // 🔒 SEGURANÇA: Calcular valor total APENAS no backend
+    const valorTotal =
+      loteConfig.preco_base + (inclui_almoco ? loteConfig.preco_almoco : 0);
+
+    console.log("✅ Pedido validado:", {
+      lote: loteAtivo,
+      valor_calculado: valorTotal,
+      inclui_almoco,
+    });
 
     // Salvar pedido no Supabase
     const { data: pedidoData, error: pedidoError } = await supabase
@@ -46,7 +124,7 @@ export async function POST(request: NextRequest) {
           cidade,
           tamanho,
           inclui_almoco: inclui_almoco || false,
-          valor_total: parseFloat(valor_total),
+          valor_total: valorTotal,
           status_pagamento: "Pendente",
         },
       ])
@@ -64,13 +142,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Retornar link fixo do checkout
-    const checkoutUrl = process.env.NEXT_PUBLIC_MERCADOPAGO_CHECKOUT_URL;
-
+    // Retornar checkout URL do lote ativo
     return NextResponse.json({
       success: true,
       pedido_id: pedidoData.id,
-      init_point: checkoutUrl,
+      init_point: loteConfig.checkout_url,
+      lote: loteAtivo,
+      valor_total: valorTotal,
       message: "Pedido criado com sucesso!",
     });
   } catch (error: any) {
