@@ -3,6 +3,12 @@ import { supabase } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
+    // 🌐 Detectar URL base automaticamente (funciona em qualquer ambiente)
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : `${request.nextUrl.protocol}//${request.nextUrl.host}`;
+
     const body = await request.json();
     const {
       nome,
@@ -106,7 +112,7 @@ export async function POST(request: NextRequest) {
     // Isso evita criar registros órfãos se o pagamento falhar
     console.log("📞 Criando preferência de pagamento...");
     const preferenceResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/create-preference`,
+      `${baseUrl}/api/mercadopago/create-preference`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

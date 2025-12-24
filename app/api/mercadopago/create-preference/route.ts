@@ -3,19 +3,20 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 
 export async function POST(request: NextRequest) {
   try {
+    // 🌐 Detectar URL base automaticamente (funciona em qualquer ambiente)
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : `${request.nextUrl.protocol}//${request.nextUrl.host}`);
+
+    console.log("🔗 Base URL detectada:", baseUrl);
+
     // Validar variáveis de ambiente
     if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
       console.error("❌ MERCADOPAGO_ACCESS_TOKEN não configurado");
       return NextResponse.json(
         { error: "Configuração do Mercado Pago ausente" },
-        { status: 500 }
-      );
-    }
-
-    if (!process.env.NEXT_PUBLIC_APP_URL) {
-      console.error("❌ NEXT_PUBLIC_APP_URL não configurado");
-      return NextResponse.json(
-        { error: "URL do aplicativo não configurada" },
         { status: 500 }
       );
     }
@@ -94,13 +95,13 @@ export async function POST(request: NextRequest) {
         installments: 1, // Apenas pagamento à vista
       },
       back_urls: {
-        success: `${process.env.NEXT_PUBLIC_APP_URL}/pagamento/sucesso?pedido_id=${pedido_id}`,
-        failure: `${process.env.NEXT_PUBLIC_APP_URL}/pagamento/falha?pedido_id=${pedido_id}`,
-        pending: `${process.env.NEXT_PUBLIC_APP_URL}/pagamento/pendente?pedido_id=${pedido_id}`,
+        success: `${baseUrl}/pagamento/sucesso?pedido_id=${pedido_id}`,
+        failure: `${baseUrl}/pagamento/falha?pedido_id=${pedido_id}`,
+        pending: `${baseUrl}/pagamento/pendente?pedido_id=${pedido_id}`,
       },
       auto_return: "all" as const, // Redirecionar automaticamente em todos os casos
       external_reference: pedido_id,
-      notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/webhook`,
+      notification_url: `${baseUrl}/api/mercadopago/webhook`,
       statement_descriptor: "EVENTO MW",
       expires: true,
       expiration_date_from: new Date().toISOString(),
