@@ -609,15 +609,14 @@ export default function AdminPage() {
                       R$ {pedido.valor_total.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {pedido.data_compra
-                        ? new Date(pedido.data_compra).toLocaleDateString(
-                            "pt-BR",
-                            {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                            },
-                          )
+                      {pedido.data_compra || pedido.created_at
+                        ? new Date(
+                            pedido.data_compra || pedido.created_at,
+                          ).toLocaleDateString("pt-BR", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                          })
                         : "N/A"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
