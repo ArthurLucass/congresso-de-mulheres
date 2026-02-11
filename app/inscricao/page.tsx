@@ -169,11 +169,7 @@ export default function InscricaoPage() {
       window.location.href = response.data.init_point;
     } catch (err: any) {
       console.error("❌ Erro ao processar pedido:", err);
-      setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Erro ao processar pedido. Tente novamente.",
-      );
+      setError("Erro interno. Tente novamente.");
       setIsSubmitting(false);
     }
   };
@@ -203,15 +199,12 @@ export default function InscricaoPage() {
                 Lote {loteConfig.numero_lote}
               </div>
               <div className="text-xl sm:text-2xl font-semibold mb-2">
-                R${" "}
-                {(loteConfig.preco_base + loteConfig.preco_almoco)
-                  .toFixed(2)
-                  .replace(".", ",")}
+                R$ {(loteConfig.preco_base + 25).toFixed(2).replace(".", ",")}
               </div>
               <div className="text-sm opacity-90">
                 Inscrição: R${" "}
                 {loteConfig.preco_base.toFixed(2).replace(".", ",")} | Almoço:
-                R$ {loteConfig.preco_almoco.toFixed(2).replace(".", ",")}
+                R$ 25,00
               </div>
             </div>
           </div>
@@ -392,8 +385,7 @@ export default function InscricaoPage() {
                   htmlFor="incluiAlmoco"
                   className="ml-3 text-sm font-medium text-gray-700"
                 >
-                  Incluir Almoço (+R$ {valorAlmoco.toFixed(2).replace(".", ",")}
-                  )
+                  Incluir Almoço (+R$ 25,00) )
                 </label>
               </div>
             </div>
@@ -424,9 +416,7 @@ export default function InscricaoPage() {
                 {formData.incluiAlmoco && (
                   <div className="flex justify-between items-center text-gray-700">
                     <span className="font-medium">Almoço:</span>
-                    <span className="font-semibold">
-                      R$ {valorAlmoco.toFixed(2).replace(".", ",")}
-                    </span>
+                    <span className="font-semibold">R$ 25,00</span>
                   </div>
                 )}
 

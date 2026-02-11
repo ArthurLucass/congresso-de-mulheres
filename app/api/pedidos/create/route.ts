@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Todos os campos são obrigatórios" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       console.error("❌ Erro ao buscar lote ativo:", configError);
       return NextResponse.json(
         { error: "Erro ao buscar configuração do sistema" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -116,14 +116,14 @@ export async function POST(request: NextRequest) {
       .from("config_sistema")
       .select("chave, valor")
       .or(
-        `chave.eq.lote_${loteAtivo}_preco_base,chave.eq.lote_${loteAtivo}_preco_almoco`
+        `chave.eq.lote_${loteAtivo}_preco_base,chave.eq.lote_${loteAtivo}_preco_almoco`,
       );
 
     if (configsError || !configsData || configsData.length === 0) {
       console.error("❌ Erro ao buscar configuração do lote:", configsError);
       return NextResponse.json(
         { error: "Erro ao buscar configuração do lote" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
           error:
             "Configuração de preço do lote está incompleta. Contate o administrador.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     console.log("✅ Pedido validado:", {
       lote: loteAtivo,
       preco_base: precoBase,
-      preco_almoco: precoAlmoco,
+      preco_almoco: 25,
       valor_calculado: valorTotal,
       inclui_almoco,
     });
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
         valor_total: valorTotal,
         lote_id: loteAtivo,
         preco_base: precoBase,
-        preco_almoco: precoAlmoco,
+        preco_almoco: 25,
         inclui_almoco: inclui_almoco || false,
       });
 
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
         {
           error: error.message || "Erro ao criar preferência de pagamento",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -214,6 +214,7 @@ export async function POST(request: NextRequest) {
           inclui_almoco: inclui_almoco || false,
           valor_total: valorTotal,
           status_pagamento: "Pendente",
+          // data_compra removido, será preenchido automaticamente pelo banco
         },
       ])
       .select()
@@ -226,7 +227,7 @@ export async function POST(request: NextRequest) {
           error:
             "Erro ao salvar pedido no banco de dados: " + pedidoError.message,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
     console.log("✅ Pedido criado com sucesso:", {
@@ -234,6 +235,7 @@ export async function POST(request: NextRequest) {
       lote: loteAtivo,
       valor_total: valorTotal,
       preference_id: preference.id,
+      data_compra: pedidoData.data_compra,
     });
 
     return NextResponse.json({
@@ -242,6 +244,7 @@ export async function POST(request: NextRequest) {
       init_point: preference.init_point,
       lote: loteAtivo,
       valor_total: valorTotal,
+      data_compra: pedidoData.data_compra,
       message: "Pedido criado com sucesso!",
     });
   } catch (error: any) {
@@ -251,7 +254,7 @@ export async function POST(request: NextRequest) {
       {
         error: error.message || "Erro ao processar pedido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

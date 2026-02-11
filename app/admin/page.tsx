@@ -171,9 +171,7 @@ export default function AdminPage() {
         ? (loteConfig.preco_base + loteConfig.preco_almoco).toFixed(2)
         : "--";
       const valorBase = loteConfig ? loteConfig.preco_base.toFixed(2) : "--";
-      const valorAlmoco = loteConfig
-        ? loteConfig.preco_almoco.toFixed(2)
-        : "--";
+      const valorAlmoco = "25.00";
 
       setToastMessage(
         `✅ Lote ${novoLote} ativado! Valor: R$ ${valorTotal} (Base R$ ${valorBase} + Almoço R$ ${valorAlmoco})`,
@@ -226,21 +224,36 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, statusFilter, pedidos]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este pedido?")) return;
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePedidoId, setDeletePedidoId] = useState<string | null>(null);
 
+  const handleDelete = async () => {
+    if (!deletePedidoId) return;
     try {
-      const { error } = await supabase.from("pedidos").delete().eq("id", id);
+      const { error } = await supabase
+        .from("pedidos")
+        .delete()
+        .eq("id", deletePedidoId);
       if (error) {
-        console.error("Erro ao excluir:", error);
-        alert(`Erro ao excluir pedido: ${error.message}`);
+        setToastMessage("Erro ao excluir pedido. Tente novamente.");
+        setToastType("error");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 4000);
+        setShowDeleteModal(false);
         return;
       }
-      alert("Pedido excluído com sucesso!");
+      setToastMessage("Pedido excluído com sucesso!");
+      setToastType("success");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+      setShowDeleteModal(false);
       loadPedidos();
     } catch (error: any) {
-      console.error("Erro ao excluir:", error);
-      alert(`Erro ao excluir pedido: ${error.message}`);
+      setToastMessage("Erro ao excluir pedido. Tente novamente.");
+      setToastType("error");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+      setShowDeleteModal(false);
     }
   };
 
@@ -252,11 +265,16 @@ export default function AdminPage() {
         .eq("id", id);
 
       if (error) {
-        console.error("Erro ao atualizar status:", error);
-        alert(`Erro ao atualizar status: ${error.message}`);
+        setToastMessage("Erro ao atualizar status. Tente novamente.");
+        setToastType("error");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 4000);
         return;
       }
-      alert("Status atualizado com sucesso!");
+      setToastMessage("Status atualizado com sucesso!");
+      setToastType("success");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
       loadPedidos();
     } catch (error: any) {
       console.error("Erro ao atualizar status:", error);
@@ -598,8 +616,6 @@ export default function AdminPage() {
                               year: "numeric",
                               month: "2-digit",
                               day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
                             },
                           )
                         : "N/A"}
@@ -634,11 +650,41 @@ export default function AdminPage() {
                         Editar
                       </button>
                       <button
-                        onClick={() => handleDelete(pedido.id)}
+                        onClick={() => {
+                          setDeletePedidoId(pedido.id);
+                          setShowDeleteModal(true);
+                        }}
                         className="text-red-600 hover:text-red-900"
                       >
                         Excluir
                       </button>
+                      {/* Modal de Exclusão */}
+                      {showDeleteModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+                            <h2 className="text-xl font-bold mb-4">
+                              Confirmar Exclusão
+                            </h2>
+                            <p className="mb-6 text-gray-700">
+                              Tem certeza que deseja excluir este pedido?
+                            </p>
+                            <div className="flex gap-4">
+                              <button
+                                onClick={() => setShowDeleteModal(false)}
+                                className="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition font-semibold"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={handleDelete}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
