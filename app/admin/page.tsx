@@ -308,17 +308,27 @@ export default function AdminPage() {
 
       if (error) {
         console.error("Erro ao atualizar pedido:", error);
-        alert(`Erro ao atualizar pedido: ${error.message}`);
+        setToastMessage("Erro ao atualizar pedido. Tente novamente.");
+        setToastType("error");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 4000);
         return;
       }
 
-      alert("Pedido atualizado com sucesso!");
+      setToastMessage("Pedido atualizado com sucesso!");
+      setToastType("success");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
       setShowEditModal(false);
       setEditingPedido(null);
       loadPedidos();
     } catch (error: any) {
       console.error("Erro ao atualizar pedido:", error);
-      alert(`Erro ao atualizar pedido: ${error.message}`);
+      setToastMessage("Erro ao atualizar pedido. Tente novamente.");
+      setToastType("error");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+      setShowEditModal(false);
     }
   };
 
@@ -330,7 +340,17 @@ export default function AdminPage() {
 
     autoTable(doc, {
       startY: 30,
-      head: [["Nome", "Email", "Telefone", "Cidade", "Status", "Valor"]],
+      head: [
+        [
+          "Nome",
+          "Email",
+          "Telefone",
+          "Cidade",
+          "Status",
+          "Valor",
+          "Data de Compra",
+        ],
+      ],
       body: filteredPedidos.map((p) => [
         p.nome,
         p.email,
@@ -338,6 +358,7 @@ export default function AdminPage() {
         p.cidade,
         p.status_pagamento,
         `R$ ${p.valor_total.toFixed(2)}`,
+        new Date(p.created_at || p.data_compra).toLocaleDateString("pt-BR"),
       ]),
     });
 
