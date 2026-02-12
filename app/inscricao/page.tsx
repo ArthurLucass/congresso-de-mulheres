@@ -30,8 +30,16 @@ export default function InscricaoPage() {
   } | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-  const valorBase = loteConfig?.preco_base || 40;
-  const valorAlmoco = loteConfig?.preco_almoco || 25;
+  // Valores base fixos conforme solicitado
+  const valorBase =
+    loteConfig?.numero_lote === 1
+      ? 80
+      : loteConfig?.numero_lote === 2
+        ? 90
+        : loteConfig?.numero_lote === 3
+          ? 100
+          : 80;
+  const valorAlmoco = 25;
   const valorTotal = valorBase + (formData.incluiAlmoco ? valorAlmoco : 0);
 
   useEffect(() => {
@@ -136,37 +144,28 @@ export default function InscricaoPage() {
     setIsSubmitting(true);
 
     try {
-      // 🔒 SEGURANÇA: Enviar apenas dados do formulário
-      // NÃO enviar valor_total ou checkout_url
-      const response = await axios.post("/api/pedidos/create", {
-        nome: formData.nome,
-        idade: parseInt(formData.idade),
-        telefone: formData.telefone,
-        email: formData.email,
-        parroquia: formData.parroquia,
-        cidade: formData.cidade,
-        tamanho: formData.tamanho,
-        inclui_almoco: formData.incluiAlmoco,
-        // ❌ NÃO enviar: valor_total, checkout_url, lote
-      });
+      // Definir URLs dos lotes
+      const urls = {
+        1: {
+          base: "https://mpago.li/1tmSGGZ",
+          almoco: "https://mpago.la/2WfnHaU",
+        },
+        2: {
+          base: "https://mpago.la/2LiHv88",
+          almoco: "https://mpago.la/1yKkmFH",
+        },
+        3: {
+          base: "https://mpago.la/2pg4Hdk",
+          almoco: "https://mpago.la/18a4pfS",
+        },
+      };
 
-      // 🔒 VALIDAÇÃO: Verificar se resposta do backend é válida
-      if (!response.data.init_point) {
-        throw new Error("Link de pagamento não foi gerado");
-      }
+      // Determinar lote ativo
+      const lote = loteConfig?.numero_lote || 1;
+      const link = formData.incluiAlmoco ? urls[lote].almoco : urls[lote].base;
 
-      // 🔒 VALIDAÇÃO: Verificar se URL é válida
-      if (!response.data.init_point.startsWith("http")) {
-        throw new Error("URL de checkout inválida");
-      }
-
-      console.log("✅ Pedido validado pelo backend:", {
-        lote: response.data.lote,
-        valor: response.data.valor_total,
-      });
-
-      // Redirecionar para o checkout validado pelo backend
-      window.location.href = response.data.init_point;
+      // Redirecionar para o link correto
+      window.location.href = link;
     } catch (err: any) {
       console.error("❌ Erro ao processar pedido:", err);
       setError("Erro interno. Tente novamente.");
@@ -175,7 +174,7 @@ export default function InscricaoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-4 px-3 sm:py-6 sm:px-4 lg:py-8 lg:px-8">
       <div className="max-w-2xl mx-auto">
         {/* Loading State */}
         {isLoadingConfig && (
@@ -199,20 +198,18 @@ export default function InscricaoPage() {
                 Lote {loteConfig.numero_lote}
               </div>
               <div className="text-xl sm:text-2xl font-semibold mb-2">
-                R$ {(loteConfig.preco_base + 25).toFixed(2).replace(".", ",")}
+                R$ {valorBase.toFixed(2).replace(".", ",")}
               </div>
               <div className="text-sm opacity-90">
-                Inscrição: R${" "}
-                {loteConfig.preco_base.toFixed(2).replace(".", ",")} | Almoço:
-                R$ 25,00
+                Inscrição: R$ {valorBase.toFixed(2).replace(".", ",")}
               </div>
             </div>
           </div>
         )}
 
         {/* Card principal */}
-        <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-8">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center text-gray-800 mb-4 sm:mb-6 md:mb-8">
             Formulário de Inscrição
           </h1>
 
@@ -222,12 +219,15 @@ export default function InscricaoPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-3 sm:space-y-4 md:space-y-6"
+          >
             {/* Nome Completo */}
             <div>
               <label
                 htmlFor="nome"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2"
               >
                 Nome Completo *
               </label>
@@ -237,7 +237,7 @@ export default function InscricaoPage() {
                 name="nome"
                 value={formData.nome}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 required
               />
             </div>
@@ -385,47 +385,51 @@ export default function InscricaoPage() {
                   htmlFor="incluiAlmoco"
                   className="ml-3 text-sm font-medium text-gray-700"
                 >
-                  Incluir Almoço (+R$ 25,00) )
+                  Incluir Almoço (+R$ 25,00)
                 </label>
               </div>
             </div>
 
             {/* Valor Total com Breakdown */}
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-6 space-y-3">
-              <div className="text-center mb-4">
-                <div className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg sm:rounded-xl p-4 sm:p-6 space-y-2 sm:space-y-3">
+              <div className="text-center mb-2 sm:mb-4">
+                <div className="text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">
                   Resumo do Pedido
                 </div>
                 {loteConfig && (
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs sm:text-xs text-gray-500">
                     Lote {loteConfig.numero_lote} vigente
                   </div>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-gray-700">
-                  <span className="font-medium">
+              <div className="space-y-1 sm:space-y-2">
+                <div className="flex justify-between items-center text-gray-700 text-sm sm:text-base">
+                  <span className="font-medium text-xs sm:text-sm">
                     Inscrição (Lote {loteConfig?.numero_lote || 1}):
                   </span>
-                  <span className="font-semibold">
+                  <span className="font-semibold text-sm sm:text-base">
                     R$ {valorBase.toFixed(2).replace(".", ",")}
                   </span>
                 </div>
 
                 {formData.incluiAlmoco && (
-                  <div className="flex justify-between items-center text-gray-700">
-                    <span className="font-medium">Almoço:</span>
-                    <span className="font-semibold">R$ 25,00</span>
+                  <div className="flex justify-between items-center text-gray-700 text-sm sm:text-base">
+                    <span className="font-medium text-xs sm:text-sm">
+                      Almoço:
+                    </span>
+                    <span className="font-semibold text-sm sm:text-base">
+                      R$ 25,00
+                    </span>
                   </div>
                 )}
 
-                <div className="border-t-2 border-blue-300 pt-3 mt-3">
+                <div className="border-t-2 border-blue-300 pt-2 sm:pt-3 mt-2 sm:mt-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xl font-bold text-gray-800">
+                    <span className="text-base sm:text-lg md:text-xl font-bold text-gray-800">
                       Valor Total:
                     </span>
-                    <span className="text-2xl sm:text-3xl font-bold text-blue-600">
+                    <span className="text-lg sm:text-2xl md:text-3xl font-bold text-blue-600">
                       R$ {valorTotal.toFixed(2).replace(".", ",")}
                     </span>
                   </div>
@@ -454,7 +458,7 @@ export default function InscricaoPage() {
             </div>
 
             {/* Termos de Aceite */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4">
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
@@ -549,12 +553,12 @@ export default function InscricaoPage() {
             </div>
 
             {/* Botões */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="flex flex-col gap-2 sm:gap-4 pt-2 sm:pt-4">
               <button
                 type="button"
                 onClick={handleCancel}
                 disabled={isSubmitting}
-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 sm:px-6 py-2 sm:py-3 border border-gray-300 text-gray-700 font-semibold text-sm sm:text-base rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>
@@ -566,7 +570,7 @@ export default function InscricaoPage() {
                   !aceitaUsoImagem ||
                   !aceitaRegulamento
                 }
-                className="flex-1 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white font-semibold text-sm sm:text-base rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting
                   ? "Processando..."
@@ -577,18 +581,18 @@ export default function InscricaoPage() {
         </div>
 
         {/* Footer com Redes Sociais */}
-        <footer className="mt-8 bg-white rounded-xl shadow-lg p-4 sm:p-6">
+        <footer className="mt-4 sm:mt-6 md:mt-8 bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6">
           <div className="text-center">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4">
               Siga nossas redes sociais
             </h3>
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-6">
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-3 md:gap-6">
               {/* WhatsApp */}
               <a
                 href="https://chat.whatsapp.com/IV6CXOqwRsnLxLdPmo5wCJ"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm sm:text-base"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 sm:px-6 py-2 sm:py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base"
               >
                 <svg
                   className="w-6 h-6"
@@ -605,7 +609,7 @@ export default function InscricaoPage() {
                 href="https://www.instagram.com/congmulherescatolicasitb"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm sm:text-base"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-3 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-xs sm:text-sm md:text-base"
               >
                 <svg
                   className="w-6 h-6"

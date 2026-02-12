@@ -38,14 +38,18 @@ export default function AdminPage() {
   const [editingPedido, setEditingPedido] = useState<Pedido | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [loteAtivo, setLoteAtivo] = useState<string>("1");
-  const [lotesConfig, setLotesConfig] = useState<Record<string, LoteConfig>>(
-    {},
-  );
+  const router = useRouter();
+
+  const lotesConfig: Record<string, LoteConfig> = {
+    "1": { numero: 1, preco_base: 80, preco_almoco: 25 },
+    "2": { numero: 2, preco_base: 90, preco_almoco: 25 },
+    "3": { numero: 3, preco_base: 100, preco_almoco: 25 },
+  };
+
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [isChangingLote, setIsChangingLote] = useState(false);
-  const router = useRouter();
 
   const checkAuth = async () => {
     const {
@@ -165,13 +169,12 @@ export default function AdminPage() {
 
       setLoteAtivo(novoLote);
 
-      // Buscar valores do banco para exibir no toast
       const loteConfig = lotesConfig[novoLote];
-      const valorTotal = loteConfig
-        ? (loteConfig.preco_base + loteConfig.preco_almoco).toFixed(2)
-        : "--";
-      const valorBase = loteConfig ? loteConfig.preco_base.toFixed(2) : "--";
-      const valorAlmoco = "25.00";
+      const valorBase = loteConfig.preco_base.toFixed(2).replace(".", ",");
+      const valorAlmoco = "25,00";
+      const valorTotal = (loteConfig.preco_base + loteConfig.preco_almoco)
+        .toFixed(2)
+        .replace(".", ",");
 
       setToastMessage(
         `✅ Lote ${novoLote} ativado! Valor: R$ ${valorTotal} (Base R$ ${valorBase} + Almoço R$ ${valorAlmoco})`,
@@ -215,7 +218,6 @@ export default function AdminPage() {
     checkAuth();
     loadPedidos();
     loadLoteAtivo();
-    loadLotesConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -457,9 +459,9 @@ export default function AdminPage() {
       </div>
 
       {/* Conteúdo Principal */}
-      <div className="mx-auto px-3 sm:px-4 lg:px-6 py-8">
+      <div className="mx-auto px-2 sm:px-3 md:px-4 lg:px-6 py-4 sm:py-6 md:py-8">
         {/* Filtros e Exportação */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <input
               type="text"
@@ -497,31 +499,36 @@ export default function AdminPage() {
           </div>
 
           {/* Seleção de Lote Ativo */}
-          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-4 pb-4 border-b border-gray-200">
+          <div className="flex flex-col gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200">
             <label className="text-xs sm:text-sm font-semibold text-gray-700 whitespace-nowrap">
-              🎯 Configurar Lote Ativo:
+              🎏 Configurar Lote Ativo:
             </label>
             <select
               value={loteAtivo}
               onChange={(e) => handleLoteChange(e.target.value)}
               disabled={isChangingLote}
-              className="w-full md:w-auto px-3 sm:px-4 py-2 border-2 border-blue-500 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none bg-blue-50 font-semibold text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+              className="w-full px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm border-2 border-blue-500 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none bg-blue-50 font-semibold text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {Object.entries(lotesConfig).map(([numero, config]) => {
-                const valorTotal = (
-                  config.preco_base + config.preco_almoco
-                ).toFixed(2);
+                const valorBase = config.preco_base
+                  .toFixed(2)
+                  .replace(".", ",");
+                const valorAlmoco = "25,00";
+                const valorTotal = (config.preco_base + config.preco_almoco)
+                  .toFixed(2)
+                  .replace(".", ",");
                 return (
                   <option key={numero} value={numero}>
-                    Lote {numero} — R$ {valorTotal}
+                    Lote {numero} — R$ {valorBase} (sem almoço) / R${" "}
+                    {valorTotal} (com almoço)
                   </option>
                 );
               })}
             </select>
             {isChangingLote && (
-              <span className="flex items-center text-blue-600 text-sm">
+              <span className="flex items-center text-blue-600 text-xs sm:text-sm">
                 <svg
-                  className="animate-spin h-4 w-4 mr-2"
+                  className="animate-spin h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -544,7 +551,7 @@ export default function AdminPage() {
               </span>
             )}
             {!isChangingLote && (
-              <span className="text-sm text-gray-600 italic">
+              <span className="text-xs sm:text-sm text-gray-600 italic">
                 Novas inscrições usarão o lote selecionado
               </span>
             )}

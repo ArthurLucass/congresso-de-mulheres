@@ -127,34 +127,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Montar objeto de configuração do lote
+    // Valores base fixos conforme solicitado
     let precoBase = 0;
-    let precoAlmoco = 0;
-
-    configsData.forEach((config) => {
-      if (config.chave.includes("preco_base")) {
-        precoBase = parseFloat(config.valor);
-      } else if (config.chave.includes("preco_almoco")) {
-        precoAlmoco = parseFloat(config.valor);
-      }
-    });
-
-    // 🔒 VALIDAÇÃO DE SEGURANÇA: Verificar se preços estão configurados
-    if (!precoBase || !precoAlmoco) {
-      console.error("❌ Configuração de preço incompleta:", {
-        precoBase,
-        precoAlmoco,
-      });
-      return NextResponse.json(
-        {
-          error:
-            "Configuração de preço do lote está incompleta. Contate o administrador.",
-        },
-        { status: 500 },
-      );
+    let precoAlmoco = 25;
+    if (loteAtivo === 1) {
+      precoBase = 80;
+    } else if (loteAtivo === 2) {
+      precoBase = 90;
+    } else if (loteAtivo === 3) {
+      precoBase = 100;
     }
-
-    // 🔒 SEGURANÇA: Calcular valor total APENAS no backend
     const valorTotal = precoBase + (inclui_almoco ? precoAlmoco : 0);
 
     console.log("✅ Pedido validado:", {
