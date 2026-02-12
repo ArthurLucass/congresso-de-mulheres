@@ -107,45 +107,6 @@ export default function AdminPage() {
     }
   };
 
-  const loadLotesConfig = async () => {
-    try {
-      // Buscar configurações dos 3 lotes
-      const { data, error } = await supabase
-        .from("config_sistema")
-        .select("chave, valor")
-        .or("chave.like.lote_1_%,chave.like.lote_2_%,chave.like.lote_3_%");
-
-      if (error) throw error;
-
-      // Organizar dados por lote
-      const config: Record<string, LoteConfig> = {
-        "1": { numero: 1, preco_base: 0, preco_almoco: 0 },
-        "2": { numero: 2, preco_base: 0, preco_almoco: 0 },
-        "3": { numero: 3, preco_base: 0, preco_almoco: 0 },
-      };
-
-      data?.forEach((item) => {
-        if (item.chave.includes("lote_1_preco_base")) {
-          config["1"].preco_base = parseFloat(item.valor);
-        } else if (item.chave.includes("lote_1_preco_almoco")) {
-          config["1"].preco_almoco = parseFloat(item.valor);
-        } else if (item.chave.includes("lote_2_preco_base")) {
-          config["2"].preco_base = parseFloat(item.valor);
-        } else if (item.chave.includes("lote_2_preco_almoco")) {
-          config["2"].preco_almoco = parseFloat(item.valor);
-        } else if (item.chave.includes("lote_3_preco_base")) {
-          config["3"].preco_base = parseFloat(item.valor);
-        } else if (item.chave.includes("lote_3_preco_almoco")) {
-          config["3"].preco_almoco = parseFloat(item.valor);
-        }
-      });
-
-      setLotesConfig(config);
-    } catch (error) {
-      console.error("Erro ao carregar configurações dos lotes:", error);
-    }
-  };
-
   const handleLoteChange = async (novoLote: string) => {
     if (novoLote === loteAtivo) return;
 

@@ -145,23 +145,23 @@ export default function InscricaoPage() {
 
     try {
       // Definir URLs dos lotes
-      const urls = {
-        1: {
+      const urls: Record<string, { base: string; almoco: string }> = {
+        "1": {
           base: "https://mpago.li/1tmSGGZ",
           almoco: "https://mpago.la/2WfnHaU",
         },
-        2: {
+        "2": {
           base: "https://mpago.la/2LiHv88",
           almoco: "https://mpago.la/1yKkmFH",
         },
-        3: {
+        "3": {
           base: "https://mpago.la/2pg4Hdk",
           almoco: "https://mpago.la/18a4pfS",
         },
       };
 
       // Determinar lote ativo
-      const lote = loteConfig?.numero_lote || 1;
+      const lote = String(loteConfig?.numero_lote || 1);
       const link = formData.incluiAlmoco ? urls[lote].almoco : urls[lote].base;
 
       // Redirecionar para o link correto
