@@ -2,8 +2,165 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
+type Body = {
+  pedido_id?: string | number;
+  nome?: string;
+  email?: string;
+  valor_total?: number | string;
+  lote?: number | string;
+  inclui_almoco?: boolean | string | number;
+  comAlmoco?: boolean | string | number;
+  idade?: string | number;
+  telefone?: string;
+  parroquia?: string;
+  cidade?: string;
+  tamanho?: string;
+  serverInsert?: boolean;
+};
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["1", "true", "sim", "yes", "on"].includes(normalized);
+  }
+  return false;
+}
+
+async function getConfigValue(supabase: any, chave: string) {
+  const { data, error } = await supabase
+    .from("config_sistema")
+    .select("valor")
+    .eq("chave", chave)
+    .single();
+
+  if (error || !data?.valor) {
+    throw new Error(`Config não encontrada: ${chave}`);
+  }
+  return data.valor as string;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const payload = (await request.json()) as Body;
+    const lote = Number(payload.lote);
+    const inclui_almoco = toBoolean(payload.inclui_almoco ?? payload.comAlmoco);
+    const incomingNome = (payload.nome || "").trim();
+    const incomingEmail = (payload.email || "").trim();
+    const incomingIdade = Number(payload.idade);
+    const incomingTelefone = (payload.telefone || "").trim();
+    const incomingParroquia = (payload.parroquia || "").trim();
+    const incomingCidade = (payload.cidade || "").trim();
+    const incomingTamanho = (payload.tamanho || "").trim();
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    const supabaseReadKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      "";
+
+    if (payload.serverInsert === true) {
+      if (!lote || lote < 1) {
+        return NextResponse.json({ error: "Lote inválido" }, { status: 400 });
+      }
+
+      if (!incomingNome || !incomingEmail || !incomingIdade || !incomingTelefone || !incomingParroquia || !incomingCidade || !incomingTamanho) {
+        return NextResponse.json(
+          { error: "Dados obrigatórios faltando" },
+          { status: 400 },
+        );
+      }
+
+      if (!supabaseUrl || !supabaseServiceKey || !supabaseReadKey) {
+        return NextResponse.json(
+          { error: "Configuração do Supabase ausente" },
+          { status: 500 },
+        );
+      }
+
+      const serviceSupabase = createClient<any>(supabaseUrl, supabaseServiceKey);
+      const readSupabase = createClient<any>(supabaseUrl, supabaseReadKey);
+
+      const precoBase = Number(
+        await getConfigValue(serviceSupabase, `lote_${lote}_preco_base`),
+      );
+
+      let precoAlmoco = 25;
+      try {
+        precoAlmoco = Number(
+          await getConfigValue(serviceSupabase, `lote_${lote}_preco_almoco`),
+        );
+      } catch {
+        precoAlmoco = 25;
+      }
+
+      const valor_total = precoBase + (inclui_almoco ? precoAlmoco : 0);
+
+      if (!Number.isFinite(valor_total) || valor_total <= 0) {
+        return NextResponse.json(
+          { error: "Valor total inválido para o lote selecionado" },
+          { status: 400 },
+        );
+      }
+
+      const { data: inserted, error: insertError } = await serviceSupabase
+        .from("pedidos")
+        .insert([
+          {
+            nome: incomingNome,
+            idade: incomingIdade,
+            telefone: incomingTelefone,
+            email: incomingEmail,
+            parroquia: incomingParroquia,
+            cidade: incomingCidade,
+            tamanho: incomingTamanho,
+            inclui_almoco,
+            valor_total,
+            status_pagamento: "Pendente",
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertError || !inserted?.id) {
+        return NextResponse.json(
+          { error: `Falha ao cadastrar pedido: ${insertError?.message || "erro desconhecido"}` },
+          { status: 500 },
+        );
+      }
+
+      const chavePrimaria = `lote_${lote}_checkout_url_${inclui_almoco ? "almoco" : "base"}`;
+      const chaveLegada = `lote_${lote}_checkout_url`;
+
+      let checkoutUrl = "";
+
+      try {
+        checkoutUrl = await getConfigValue(readSupabase, chavePrimaria);
+      } catch {
+        try {
+          checkoutUrl = await getConfigValue(readSupabase, chaveLegada);
+        } catch {
+          return NextResponse.json(
+            {
+              error: `Link de checkout não encontrado para o lote ${lote}`,
+              chave_tentada: chavePrimaria,
+            },
+            { status: 400 },
+          );
+        }
+      }
+
+      return NextResponse.json({
+        checkoutUrl,
+        pedido_id: inserted.id,
+        valor_total,
+        lote,
+        inclui_almoco,
+      });
+    }
+
     // Validar variáveis de ambiente
     if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
       console.error("❌ MERCADOPAGO_ACCESS_TOKEN não configurado");
@@ -25,23 +182,8 @@ export async function POST(request: NextRequest) {
       accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
     });
 
-    const {
-      pedido_id: incomingPedidoId,
-      nome: incomingNome,
-      email: incomingEmail,
-      valor_total,
-      lote,
-      inclui_almoco,
-      idade: incomingIdade,
-      telefone: incomingTelefone,
-      parroquia: incomingParroquia,
-      cidade: incomingCidade,
-      tamanho: incomingTamanho,
-    } = await request.json();
-
-    // Inicializar cliente servidor do Supabase (service role) para inserções seguras
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    const incomingPedidoId = payload.pedido_id;
+    const valor_total = Number(payload.valor_total);
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.warn(

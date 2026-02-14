@@ -41,4 +41,15 @@ SELECT
   (SELECT valor FROM config_sistema WHERE chave = 'lote_ativo') as lote_ativo,
   (SELECT valor FROM config_sistema WHERE chave = 'lote_' || (SELECT valor FROM config_sistema WHERE chave = 'lote_ativo') || '_preco_base') as preco_base,
   (SELECT valor FROM config_sistema WHERE chave = 'lote_' || (SELECT valor FROM config_sistema WHERE chave = 'lote_ativo') || '_preco_almoco') as preco_almoco,
-  (SELECT valor FROM config_sistema WHERE chave = 'lote_' || (SELECT valor FROM config_sistema WHERE chave = 'lote_ativo') || '_checkout_url') as checkout_url;
+  (SELECT valor FROM config_sistema WHERE chave = 'lote_' || (SELECT valor FROM config_sistema WHERE chave = 'lote_ativo') || '_checkout_url_base') as checkout_url_base,
+  (SELECT valor FROM config_sistema WHERE chave = 'lote_' || (SELECT valor FROM config_sistema WHERE chave = 'lote_ativo') || '_checkout_url_almoco') as checkout_url_almoco;
+
+-- Ver apenas os URLs de checkout
+SELECT chave, valor
+FROM config_sistema
+WHERE chave IN (
+  'lote_1_checkout_url_base','lote_1_checkout_url_almoco',
+  'lote_2_checkout_url_base','lote_2_checkout_url_almoco',
+  'lote_3_checkout_url_base','lote_3_checkout_url_almoco'
+)
+ORDER BY chave;
