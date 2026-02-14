@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Sistema de Inscrição MW",
-  description: "Sistema de inscrição com pagamento via Mercado Pago",
+  title: "Cngresso de Mulheres",
+  description: "Site do Congresso de Mulheres",
 };
 
 export default function RootLayout({
